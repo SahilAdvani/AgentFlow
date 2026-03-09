@@ -35,10 +35,11 @@ app.add_middleware(
 class StartupRequest(BaseModel):
     idea: str
     email: Optional[str] = None
+    user_id: Optional[str] = None
 
 active_sessions = {}
 
-async def run_analysis(session_id: str, idea: str, email: Optional[str]):
+async def run_analysis(session_id: str, idea: str, email: Optional[str], user_id: Optional[str]):
     queue = active_sessions[session_id]["events"]
     
     try:
@@ -91,6 +92,24 @@ async def run_analysis(session_id: str, idea: str, email: Optional[str]):
         if email:
             await queue.put({"type": "agent_thinking", "agent_name": "ReportAgent", "content": f"Sending report to {email}..."})
             email_service.send_report(email, pdf_path, idea)
+            
+        # 10. Save to History if user is logged in
+        if user_id:
+            await queue.put({"type": "agent_thinking", "agent_name": "System", "content": "Saving report to history..."})
+            try:
+                from supabase import create_client
+                supabase_url = os.getenv("SUPABASE_URL")
+                supabase_key = os.getenv("SUPABASE_KEY")
+                if supabase_url and supabase_key:
+                    supabase = create_client(supabase_url, supabase_key)
+                    supabase.table("reports_history").insert({
+                        "user_id": user_id,
+                        "idea": idea,
+                        "report_json": final_report,
+                        "pdf_url": None  # Placeholder, could upload PDF to Supabase Storage later
+                    }).execute()
+            except Exception as e:
+                print(f"Failed to save history: {e}")
         
         await queue.put({"type": "analysis_complete", "agent_name": "ReportAgent", "content": "Analysis finished!", "data": final_report})
         
@@ -109,7 +128,7 @@ async def start_analysis(request: StartupRequest):
         "events": asyncio.Queue()
     }
     # Fire and forget the analysis task
-    asyncio.create_task(run_analysis(session_id, request.idea, request.email))
+    asyncio.create_task(run_analysis(session_id, request.idea, request.email, request.user_id))
     return {"session_id": session_id}
 
 from fastapi.responses import FileResponse
@@ -121,14 +140,7 @@ async def download_report(session_id: str):
         return FileResponse(pdf_path, filename="Startup_Analysis_Report.pdf")
     return {"error": "Report not found"}
 
-from fastapi.responses import FileResponse
 
-@app.get("/download/{session_id}")
-async def download_report(session_id: str):
-    pdf_path = f"{session_id}_report.pdf"
-    if os.path.exists(pdf_path):
-        return FileResponse(pdf_path, filename="Startup_Analysis_Report.pdf")
-    return {"error": "Report not found"}
 
 @app.get("/stream/{session_id}")
 async def stream_events(session_id: str):

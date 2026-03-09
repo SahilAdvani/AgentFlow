@@ -1,0 +1,37 @@
+# --- GENERAL ---
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# --- BACKEND (Python) ---
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/venv/
+backend/.venv/
+backend/env/
+backend/ENV/
+backend/.env
+backend/.env.local
+backend/chroma_db/
+backend/*.pdf
+
+# --- FRONTEND (Next.js) ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# --- ROOT (General) ---
+venv/
+.env
+.env.local
+node_modules/
+dist/
+build/

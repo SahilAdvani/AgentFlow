@@ -1,10 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Dashboard from "@/app/components/Dashboard";
+import AuthModal from "@/app/components/AuthModal";
+import { createClient } from "@/app/lib/supabase/client";
+import { User } from "@supabase/supabase-js";
+import { LogOut, History, UserCircle2 } from "lucide-react";
+import Link from "next/link";
 
 export default function Home() {
     const [session, setSession] = useState<{ id: string; idea: string } | null>(null);
+    const [user, setUser] = useState<User | null>(null);
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    
+    const supabase = createClient();
+
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            setUser(session?.user || null);
+        };
+        checkUser();
+
+        const { data: authListener } = supabase.auth.onAuthStateChange(
+            (event, session) => {
+                setUser(session?.user || null);
+            }
+        );
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
+    }, []);
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        setUser(null);
+    };
 
     const handleStartAnalysis = async (idea: string, email?: string) => {
         try {
@@ -12,7 +44,7 @@ export default function Home() {
             const resp = await fetch(`${baseUrl}/analyze`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ idea, email }),
+                body: JSON.stringify({ idea, email, user_id: user?.id }),
             });
             const data = await resp.json();
             setSession({ id: data.session_id, idea });
@@ -22,7 +54,50 @@ export default function Home() {
     };
 
     return (
-        <main className="p-4 md:p-8 max-w-7xl mx-auto">
+        <div className="min-h-screen bg-[#0b0e14] text-[#f8fafc] flex flex-col">
+            {/* Header Navigation */}
+            <header className="w-full border-b border-white/5 bg-slate-900/50 backdrop-blur-md sticky top-0 z-40">
+                <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold shadow-lg">
+                            AF
+                        </div>
+                        <span className="font-semibold text-white tracking-wide">AgentFlow</span>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {user ? (
+                            <>
+                                <Link href="/history" className="text-sm font-medium text-slate-300 hover:text-white transition-colors flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5">
+                                    <History size={16} />
+                                    <span className="hidden sm:inline">My Reports</span>
+                                </Link>
+                                <div className="h-4 w-px bg-white/10 mx-1"></div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm text-slate-400 hidden sm:inline">{user.email}</span>
+                                    <button 
+                                        onClick={handleSignOut}
+                                        className="text-slate-400 hover:text-red-400 transition-colors"
+                                        title="Sign Out"
+                                    >
+                                        <LogOut size={18} />
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <button 
+                                onClick={() => setIsAuthModalOpen(true)}
+                                className="text-sm font-medium bg-white/10 hover:bg-white/15 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2"
+                            >
+                                <UserCircle2 size={16} />
+                                Sign In
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </header>
+
+            <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
             {!session ? (
                 <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-8">
                     <div className="space-y-4">
@@ -39,7 +114,14 @@ export default function Home() {
             ) : (
                 <Dashboard session={session} onBack={() => setSession(null)} />
             )}
-        </main>
+            </main>
+
+            <AuthModal 
+                isOpen={isAuthModalOpen} 
+                onClose={() => setIsAuthModalOpen(false)} 
+                onAuthSuccess={() => setIsAuthModalOpen(false)} 
+            />
+        </div>
     );
 }
 
