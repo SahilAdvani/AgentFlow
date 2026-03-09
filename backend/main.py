@@ -93,20 +93,43 @@ async def run_analysis(session_id: str, idea: str, email: Optional[str], user_id
             await queue.put({"type": "agent_thinking", "agent_name": "ReportAgent", "content": f"Sending report to {email}..."})
             email_service.send_report(email, pdf_path, idea)
             
-        # 10. Save to History if user is logged in
+        # 10. Upload PDF to Supabase Storage & Save to History
         if user_id:
-            await queue.put({"type": "agent_thinking", "agent_name": "System", "content": "Saving report to history..."})
+            await queue.put({"type": "agent_thinking", "agent_name": "System", "content": "Saving report to cloud storage..."})
             try:
                 from supabase import create_client
                 supabase_url = os.getenv("SUPABASE_URL")
-                supabase_key = os.getenv("SUPABASE_KEY")
+                supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
                 if supabase_url and supabase_key:
                     supabase = create_client(supabase_url, supabase_key)
+                    
+                    # Upload PDF to Supabase Storage bucket
+                    pdf_url = None
+                    try:
+                        storage_path = f"{user_id}/{session_id}_report.pdf"
+                        with open(pdf_path, "rb") as f:
+                            supabase.storage.from_("reports").upload(
+                                storage_path,
+                                f.read(),
+                                {"content-type": "application/pdf"}
+                            )
+                        pdf_url = f"{supabase_url}/storage/v1/object/reports/{storage_path}"
+                    except Exception as storage_err:
+                        print(f"PDF upload to storage failed (non-fatal): {storage_err}")
+                        
+                    # Clean up local PDF file
+                    try:
+                        if os.path.exists(pdf_path):
+                            os.remove(pdf_path)
+                    except Exception as clean_err:
+                        print(f"Failed to clean local PDF: {clean_err}")
+                    
+                    # Save report metadata + PDF URL to history
                     supabase.table("reports_history").insert({
                         "user_id": user_id,
                         "idea": idea,
                         "report_json": final_report,
-                        "pdf_url": None  # Placeholder, could upload PDF to Supabase Storage later
+                        "pdf_url": pdf_url
                     }).execute()
             except Exception as e:
                 print(f"Failed to save history: {e}")

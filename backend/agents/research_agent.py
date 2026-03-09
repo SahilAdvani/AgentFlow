@@ -1,4 +1,4 @@
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from services.tavily_service import tavily_service
 from memory.vector_memory import vector_memory
@@ -7,10 +7,10 @@ import os
 
 class ResearchAgent:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model="gpt-4o", 
+        self.llm = ChatGroq(
+            model="llama-3.1-8b-instant", 
             temperature=0,
-            base_url=os.getenv("OPENAI_BASE_URL")
+            api_key=os.getenv("GROQ_API_KEY")
         )
         self.prompt = ChatPromptTemplate.from_template(
             "Summarize the following research for task: {task}"
