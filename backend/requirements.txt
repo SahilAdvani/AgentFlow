@@ -4,7 +4,8 @@ langchain
 langchain-openai
 langchain-community
 tavily-python
-chromadb
+openai
+supabase
 reportlab
 pydantic
 python-dotenv
