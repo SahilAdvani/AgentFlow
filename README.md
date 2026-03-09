@@ -71,7 +71,8 @@ SMTP_PASSWORD=your_app_password
 ```
 Run the server:
 ```powershell
-uvicorn main:app --reload
+python -m uvicorn main:app --reload
+
 ```
 
 ### 2. Frontend Setup

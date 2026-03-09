@@ -9,10 +9,10 @@ class VectorMemory:
         # though Supabase uses tables instead of collections.
         
         supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_KEY")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         
         if not supabase_url or not supabase_key:
-            print("WARNING: SUPABASE_URL or SUPABASE_KEY not found in environment. Shared memory will fail.")
+            print("WARNING: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not found. Shared memory will fail.")
         else:
             self.supabase: Client = create_client(supabase_url, supabase_key)
             

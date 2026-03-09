@@ -12,6 +12,12 @@ export default function HistoryPage() {
     const [reports, setReports] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedReport, setSelectedReport] = useState<any | null>(null);
+    
+    // Pagination & CRUD State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editIdeaTitle, setEditIdeaTitle] = useState("");
+    const ITEMS_PER_PAGE = 8;
 
     const supabase = createClient();
 
@@ -37,6 +43,46 @@ export default function HistoryPage() {
 
         fetchHistory();
     }, []);
+
+    const handleDelete = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this report?")) return;
+
+        const { error } = await supabase.from("reports_history").delete().eq("id", id);
+        if (!error) {
+            setReports((prev) => prev.filter((r) => r.id !== id));
+            if (selectedReport?.id === id) setSelectedReport(null);
+        } else {
+            alert("Failed to delete report.");
+        }
+    };
+
+    const handleEditSave = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (!editIdeaTitle.trim()) return;
+
+        const { error } = await supabase
+            .from("reports_history")
+            .update({ idea: editIdeaTitle })
+            .eq("id", id);
+
+        if (!error) {
+            setReports((prev) => prev.map((r) => r.id === id ? { ...r, idea: editIdeaTitle } : r));
+            if (selectedReport?.id === id) {
+                setSelectedReport({ ...selectedReport, idea: editIdeaTitle });
+            }
+            setEditingId(null);
+        } else {
+            alert("Failed to update title.");
+        }
+    };
+
+    // Calculate pagination slices
+    const totalPages = Math.ceil(reports.length / ITEMS_PER_PAGE);
+    const paginatedReports = reports.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
     if (loading) {
         return <div className="min-h-screen bg-[#0b0e14] flex items-center justify-center text-white">Loading...</div>;
@@ -69,30 +115,94 @@ export default function HistoryPage() {
             <main className="p-4 md:p-8 max-w-7xl mx-auto h-[calc(100vh-64px)] overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-full">
                     {/* Sidebar / List */}
-                    <div className="md:col-span-4 lg:col-span-3 glass rounded-2xl p-4 overflow-y-auto h-full border border-white/10">
-                        {reports.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-500 text-center space-y-3 p-4">
-                                <Clock size={32} />
-                                <p>No reports generated yet.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {reports.map((report) => (
-                                    <button
-                                        key={report.id}
-                                        onClick={() => setSelectedReport(report)}
-                                        className={`w-full text-left p-4 rounded-xl transition-all border ${
-                                            selectedReport?.id === report.id 
-                                                ? "bg-blue-600/20 border-blue-500/50 text-white" 
-                                                : "bg-slate-800/50 hover:bg-slate-800 border-white/5 text-slate-300"
-                                        }`}
-                                    >
-                                        <h3 className="font-semibold line-clamp-2">{report.idea}</h3>
-                                        <p className="text-xs mt-2 opacity-60">
-                                            {new Date(report.created_at).toLocaleDateString()}
-                                        </p>
-                                    </button>
-                                ))}
+                    <div className="md:col-span-4 lg:col-span-3 glass rounded-2xl flex flex-col overflow-hidden border border-white/10 h-full">
+                        <div className="p-4 border-b border-white/5 font-semibold text-slate-300">
+                            Saved Reports ({reports.length})
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {reports.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-500 text-center space-y-3">
+                                    <Clock size={32} />
+                                    <p>No reports generated yet.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {paginatedReports.map((report) => (
+                                        <div
+                                            key={report.id}
+                                            onClick={() => setSelectedReport(report)}
+                                            className={`w-full text-left p-4 rounded-xl transition-all border cursor-pointer group ${
+                                                selectedReport?.id === report.id 
+                                                    ? "bg-blue-600/20 border-blue-500/50 text-white" 
+                                                    : "bg-slate-800/50 hover:bg-slate-800 border-white/5 text-slate-300"
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-start gap-2">
+                                                {editingId === report.id ? (
+                                                    <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+                                                        <input 
+                                                            type="text" 
+                                                            value={editIdeaTitle}
+                                                            onChange={(e) => setEditIdeaTitle(e.target.value)}
+                                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white mb-2"
+                                                            autoFocus
+                                                        />
+                                                        <div className="flex gap-2">
+                                                            <button onClick={(e) => handleEditSave(e, report.id)} className="text-xs bg-emerald-600 px-2 py-1 rounded">Save</button>
+                                                            <button onClick={() => setEditingId(null)} className="text-xs bg-slate-700 px-2 py-1 rounded">Cancel</button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <h3 className="font-semibold line-clamp-2 flex-1">{report.idea}</h3>
+                                                )}
+                                                
+                                                {editingId !== report.id && (
+                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setEditingId(report.id); setEditIdeaTitle(report.idea); }}
+                                                            className="text-xs text-blue-400 hover:text-blue-300 px-1"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => handleDelete(e, report.id)}
+                                                            className="text-xs text-red-400 hover:text-red-300 px-1"
+                                                        >
+                                                            Del
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-xs mt-2 opacity-60">
+                                                {new Date(report.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="p-4 border-t border-white/5 flex items-center justify-between bg-slate-900/50">
+                                <button 
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 text-xs bg-slate-800 rounded disabled:opacity-50 text-slate-300"
+                                >
+                                    Prev
+                                </button>
+                                <span className="text-xs text-slate-400">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button 
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 text-xs bg-slate-800 rounded disabled:opacity-50 text-slate-300"
+                                >
+                                    Next
+                                </button>
                             </div>
                         )}
                     </div>

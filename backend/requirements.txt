@@ -10,3 +10,4 @@ reportlab
 pydantic
 python-dotenv
 aiohttp
+langchain-groq
