@@ -1,0 +1,150 @@
+import asyncio
+import json
+import traceback
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import Optional
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from agents.manager_agent import manager_agent
+from agents.research_agent import research_agent
+from agents.market_agent import market_agent
+from agents.competitor_agent import competitor_agent
+from agents.strategy_agent import strategy_agent
+from agents.report_agent import report_agent
+from services.pdf_service import pdf_service
+from services.email_service import email_service
+from memory.vector_memory import vector_memory
+
+app = FastAPI(title="AI Startup Research Command Center")
+
+# Allow CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class StartupRequest(BaseModel):
+    idea: str
+    email: Optional[str] = None
+
+active_sessions = {}
+
+async def run_analysis(session_id: str, idea: str, email: Optional[str]):
+    queue = active_sessions[session_id]["events"]
+    
+    try:
+        # 1. Clear memory for fresh session
+        vector_memory.clear_memory()
+        
+        # 2. Manager decomposing
+        await queue.put({"type": "agent_thinking", "agent_name": "ManagerAgent", "content": f"Decomposing startup idea: {idea}"})
+        tasks = await manager_agent.decompose_task(idea)
+        print(f"[SESSION {session_id}] Generated Tasks: {tasks}")
+        await queue.put({"type": "agent_result", "agent_name": "ManagerAgent", "content": f"Identified {len(tasks)} research tasks.", "data": {"tasks": tasks}})
+        
+        # 3. Researching (Sequential for demo clarity)
+        for i, task_item in enumerate(tasks):
+            # Handle if LLM returned objects instead of strings
+            task_str = task_item if isinstance(task_item, str) else task_item.get("instruction", str(task_item))
+            
+            if not task_str or not task_str.strip():
+                print(f"[SESSION {session_id}] Skipping empty task.")
+                continue
+            
+            await queue.put({"type": "agent_thinking", "agent_name": "ResearchAgent", "content": f"Conducting research for task {i+1}: {task_str}"})
+            summary = await research_agent.conduct_research(task_str)
+            await queue.put({"type": "agent_result", "agent_name": "ResearchAgent", "content": f"Summary for task {i+1} complete."})
+
+        # 4. Market Analysis
+        await queue.put({"type": "agent_thinking", "agent_name": "MarketAgent", "content": "Analyzing market size and trends..."})
+        market_data = await market_agent.analyze_market(idea)
+        await queue.put({"type": "agent_result", "agent_name": "MarketAgent", "content": "Market analysis complete.", "data": market_data})
+
+        # 5. Competitor Analysis
+        await queue.put({"type": "agent_thinking", "agent_name": "CompetitorAgent", "content": "Analyzing competitor landscape..."})
+        competitor_data = await competitor_agent.analyze_competitors(idea)
+        await queue.put({"type": "agent_result", "agent_name": "CompetitorAgent", "content": "Competitor analysis complete.", "data": competitor_data})
+
+        # 6. Strategy
+        await queue.put({"type": "agent_thinking", "agent_name": "StrategyAgent", "content": "Synthesizing research into a strategy..."})
+        strategy = await strategy_agent.propose_strategy(idea)
+        await queue.put({"type": "agent_result", "agent_name": "StrategyAgent", "content": "Strategy proposal complete."})
+
+        # 7. Final Report
+        await queue.put({"type": "agent_thinking", "agent_name": "ReportAgent", "content": "Generating final structured report..."})
+        final_report = await report_agent.generate_final_report(idea)
+        
+        # 8. PDF Generation
+        pdf_path = f"{session_id}_report.pdf"
+        pdf_service.generate_report(final_report, pdf_path)
+        
+        # 9. Email if provided
+        if email:
+            await queue.put({"type": "agent_thinking", "agent_name": "ReportAgent", "content": f"Sending report to {email}..."})
+            email_service.send_report(email, pdf_path, idea)
+        
+        await queue.put({"type": "analysis_complete", "agent_name": "ReportAgent", "content": "Analysis finished!", "data": final_report})
+        
+    except Exception as e:
+        print(f"[SESSION {session_id}] ERROR: {str(e)}")
+        traceback.print_exc()
+        await queue.put({"type": "error", "agent_name": "System", "content": str(e)})
+
+@app.post("/analyze")
+async def start_analysis(request: StartupRequest):
+    session_id = f"session_{id(request)}"
+    active_sessions[session_id] = {
+        "idea": request.idea,
+        "email": request.email,
+        "status": "active",
+        "events": asyncio.Queue()
+    }
+    # Fire and forget the analysis task
+    asyncio.create_task(run_analysis(session_id, request.idea, request.email))
+    return {"session_id": session_id}
+
+from fastapi.responses import FileResponse
+
+@app.get("/download/{session_id}")
+async def download_report(session_id: str):
+    pdf_path = f"{session_id}_report.pdf"
+    if os.path.exists(pdf_path):
+        return FileResponse(pdf_path, filename="Startup_Analysis_Report.pdf")
+    return {"error": "Report not found"}
+
+from fastapi.responses import FileResponse
+
+@app.get("/download/{session_id}")
+async def download_report(session_id: str):
+    pdf_path = f"{session_id}_report.pdf"
+    if os.path.exists(pdf_path):
+        return FileResponse(pdf_path, filename="Startup_Analysis_Report.pdf")
+    return {"error": "Report not found"}
+
+@app.get("/stream/{session_id}")
+async def stream_events(session_id: str):
+    if session_id not in active_sessions:
+        return {"error": "Session not found"}
+
+    async def event_generator():
+        queue = active_sessions[session_id]["events"]
+        while True:
+            event = await queue.get()
+            yield f"data: {json.dumps(event)}\n\n"
+            if event.get("type") == "analysis_complete":
+                break
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
