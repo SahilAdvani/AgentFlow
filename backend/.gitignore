@@ -1,0 +1,25 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+.env.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Database
+chroma_db/
+
+# Generated reports
+*.pdf
+
+# Misc
+.DS_Store
+.vscode/
+.idea/

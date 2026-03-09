@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+langchain
+langchain-openai
+langchain-community
+tavily-python
+chromadb
+reportlab
+pydantic
+python-dotenv
+aiohttp
