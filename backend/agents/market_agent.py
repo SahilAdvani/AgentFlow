@@ -34,7 +34,10 @@ class MarketAgent:
         vector_memory.add_memory(response.content, agent_name="MarketAgent", metadata={"type": "market_analysis"})
         
         try:
-            return json.loads(response.content)
+            content = response.content.strip()
+            if content.startswith("```json"): content = content[7:]
+            if content.endswith("```"): content = content[:-3]
+            return json.loads(content.strip())
         except:
             return {"raw_analysis": response.content}
 

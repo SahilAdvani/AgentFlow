@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.pdf
+.git/
+.gitignore
+chroma_db/

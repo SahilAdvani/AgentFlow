@@ -16,6 +16,7 @@ class ReportAgent:
             "Summarize these findings into a professional startup report for: {startup_idea}"
             "\n\nContext:\n{memory_context}"
             "\n\nOutput JSON with: 'executive_summary', 'market_analysis', 'competitor_landscape', 'strategy', 'recommendations'."
+            "\nIMPORTANT: Every value in the JSON must be a plain STRING. Do not return nested objects or lists for any field."
         )
 
     async def generate_final_report(self, startup_idea: str) -> Dict[str, Any]:
@@ -30,7 +31,14 @@ class ReportAgent:
         })
         
         try:
-            return json.loads(response.content)
+            # Clean up markdown code blocks if present
+            content = response.content.strip()
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
+            return json.loads(content)
         except:
             # Fallback for parsing errors
             return {"error": "Failed to parse final report", "raw": response.content}

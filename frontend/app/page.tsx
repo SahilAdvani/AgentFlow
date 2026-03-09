@@ -2,17 +2,14 @@
 
 import { useState, useEffect } from "react";
 import Dashboard from "@/app/components/Dashboard";
-import AuthModal from "@/app/components/AuthModal";
 import { createClient } from "@/app/lib/supabase/client";
-import { User } from "@supabase/supabase-js";
 import { LogOut, History, UserCircle2 } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
     const [session, setSession] = useState<{ id: string; idea: string } | null>(null);
-    const [user, setUser] = useState<User | null>(null);
-    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-    
+    const [user, setUser] = useState<any>(null);
+
     const supabase = createClient();
 
     useEffect(() => {
@@ -23,7 +20,7 @@ export default function Home() {
         checkUser();
 
         const { data: authListener } = supabase.auth.onAuthStateChange(
-            (event, session) => {
+            (_event: string, session: any) => {
                 setUser(session?.user || null);
             }
         );
@@ -75,7 +72,7 @@ export default function Home() {
                                 <div className="h-4 w-px bg-white/10 mx-1"></div>
                                 <div className="flex items-center gap-3">
                                     <span className="text-sm text-slate-400 hidden sm:inline">{user.email}</span>
-                                    <button 
+                                    <button
                                         onClick={handleSignOut}
                                         className="text-slate-400 hover:text-red-400 transition-colors"
                                         title="Sign Out"
@@ -85,42 +82,36 @@ export default function Home() {
                                 </div>
                             </>
                         ) : (
-                            <button 
-                                onClick={() => setIsAuthModalOpen(true)}
+                            <Link
+                                href="/auth"
                                 className="text-sm font-medium bg-white/10 hover:bg-white/15 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2"
                             >
                                 <UserCircle2 size={16} />
                                 Sign In
-                            </button>
+                            </Link>
                         )}
                     </div>
                 </div>
             </header>
 
             <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
-            {!session ? (
-                <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-8">
-                    <div className="space-y-4">
-                        <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-blue-400 to-violet-500 bg-clip-text text-transparent">
-                            AI Startup Command Center
-                        </h1>
-                        <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto">
-                            Deploy a team of AI agents to research your startup idea, analyze markets, and identify competitors in real-time.
-                        </p>
+                {!session ? (
+                    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center space-y-8">
+                        <div className="space-y-4">
+                            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-blue-400 to-violet-500 bg-clip-text text-transparent">
+                                AI Startup Command Center
+                            </h1>
+                            <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto">
+                                Deploy a team of AI agents to research your startup idea, analyze markets, and identify competitors in real-time.
+                            </p>
+                        </div>
+
+                        <StartupInput onStart={handleStartAnalysis} />
                     </div>
-
-                    <StartupInput onStart={handleStartAnalysis} />
-                </div>
-            ) : (
-                <Dashboard session={session} onBack={() => setSession(null)} />
-            )}
+                ) : (
+                    <Dashboard session={session} onBack={() => setSession(null)} />
+                )}
             </main>
-
-            <AuthModal 
-                isOpen={isAuthModalOpen} 
-                onClose={() => setIsAuthModalOpen(false)} 
-                onAuthSuccess={() => setIsAuthModalOpen(false)} 
-            />
         </div>
     );
 }
