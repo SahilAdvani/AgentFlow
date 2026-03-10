@@ -1,8 +1,67 @@
-venv/
+# Python cache
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables
 .env
+
+# Supabase Local
+supabase/
+.supabase/
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing and coverage
+.coverage
+.tox/
+.nox/
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files / PDFs / DBs
 *.pdf
+*.log
+chroma_db/
 .git/
 .gitignore
-chroma_db/

@@ -1,4 +1,4 @@
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from memory.vector_memory import vector_memory
 from typing import List, Dict, Any
@@ -6,10 +6,10 @@ import os
 
 class StrategyAgent:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model="gpt-4o", 
+        self.llm = ChatGroq(
+            model="llama-3.3-70b-versatile", 
             temperature=0,
-            base_url=os.getenv("OPENAI_BASE_URL")
+            api_key=os.getenv("GROQ_API_KEY")
         )
         self.prompt = ChatPromptTemplate.from_template(
             "Propose a strategy for: {startup_idea}"

@@ -71,6 +71,5 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: { isOpen: 
                     Sign In with Email
                 </button>
             </div>
-        </div>
-    );
+            );
 }
