@@ -74,7 +74,8 @@ AgentFlow is an automated, multi-agent AI dashboard. It orchestrates a team of s
 *   **Social/Economic Impact**: Democratizing access to elite-level business strategy, lowering the barrier to entry for founders from developing regions.
 
 # SLIDE 10: Prototype Demo (Optional)
-*   **Live Link**: [Your Vercel/Render Link here]
+*   **Live Link**: https://agentflowpro.vercel.app/
+*   **GitHub**: https://github.com/SahilAdvani/AgentFlow
 *   **Walkthrough**:
     1. Enter "Eco-friendly Bamboo Toothbrushes in Assam".
     2. Watch the live Agent Graph and Streaming Terminal.
