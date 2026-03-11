@@ -7,14 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
-# We'll use the existing agents, but in a real-world scenario you might
-# instantiate custom agents here that use a different LLM or config.
-from agents.manager_agent import manager_agent
-from agents.research_agent import research_agent
-from agents.market_agent import market_agent
-from agents.competitor_agent import competitor_agent
-from agents.strategy_agent import strategy_agent
-from agents.report_agent import report_agent
+
 from services.pdf_service import pdf_service
 from services.email_service import email_service
 from memory.vector_memory import vector_memory

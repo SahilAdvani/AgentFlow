@@ -15,6 +15,7 @@ import 'reactflow/dist/style.css';
 
 interface AgentNodeData {
     role: string;
+    label: string;
     instructions: string;
     isExecuting?: boolean;
 }
@@ -24,13 +25,13 @@ const initialNodes: Node<AgentNodeData>[] = [
     id: 'input',
     type: 'input',
     position: { x: 250, y: 50 },
-    data: { role: 'Input', instructions: 'User provided idea', isExecuting: false },
+    data: { role: 'Input', label: 'Input Idea', instructions: 'A platform for AI-powered personalized study plans for college students', isExecuting: false },
     style: { background: '#1e293b', color: 'white', border: '1px solid #3b82f6', borderRadius: '8px' }
   },
   {
     id: 'agent-1',
     position: { x: 250, y: 150 },
-    data: { role: 'Manager Agent', instructions: 'Decompose the task', isExecuting: false },
+    data: { role: 'Manager Agent', label: 'Manager Agent', instructions: 'Decompose the task', isExecuting: false },
     style: { background: '#1e293b', color: 'white', border: '1px solid #4ade80', borderRadius: '8px' }
   },
 ];
@@ -55,7 +56,7 @@ export default function CustomAgentBuilder({ onLaunch }: { onLaunch: (nodes: Nod
       const newNode: Node<AgentNodeData> = {
           id: newNodeId,
           position: { x: Math.random() * 200 + 100, y: Math.random() * 200 + 100 },
-          data: { role: 'New Agent', instructions: 'Describe task here...' },
+          data: { role: 'New Agent', label: 'New Agent', instructions: 'Describe task here...' },
           style: { background: '#1e293b', color: 'white', border: '1px solid #8b5cf6', borderRadius: '8px', padding: '10px' }
       };
       setNodes((nds) => [...nds, newNode]);
@@ -109,39 +110,39 @@ export default function CustomAgentBuilder({ onLaunch }: { onLaunch: (nodes: Nod
                     </div>
                     
                     {selectedNode.id !== 'input' && (
-                        <>
-                            <div>
-                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-2">Agent Role</label>
-                                <input 
-                                    type="text"
-                                    value={selectedNode.data.role}
-                                    onChange={(e) => {
-                                        setNodes(nds => nds.map(n => 
-                                            n.id === selectedNode.id ? { ...n, data: { ...n.data, role: e.target.value } } : n
-                                        ));
-                                        setSelectedNode(prev => prev ? {...prev, data: { ...prev.data, role: e.target.value }} : null);
-                                    }}
-                                    className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-2">System Instructions</label>
-                                <textarea 
-                                    rows={5}
-                                    value={selectedNode.data.instructions}
-                                    onChange={(e) => {
-                                        setNodes(nds => nds.map(n => 
-                                            n.id === selectedNode.id ? { ...n, data: { ...n.data, instructions: e.target.value } } : n
-                                        ));
-                                        setSelectedNode(prev => prev ? {...prev, data: { ...prev.data, instructions: e.target.value }} : null);
-                                    }}
-                                    placeholder="e.g. You are an expert market analyst... Do XYZ..."
-                                    className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                />
-                            </div>
-                        </>
+                        <div>
+                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-2">Agent Role</label>
+                            <input 
+                                type="text"
+                                value={selectedNode.data.role}
+                                onChange={(e) => {
+                                    setNodes(nds => nds.map(n => 
+                                        n.id === selectedNode.id ? { ...n, data: { ...n.data, role: e.target.value, label: e.target.value } } : n
+                                    ));
+                                    setSelectedNode(prev => prev ? {...prev, data: { ...prev.data, role: e.target.value, label: e.target.value }} : null);
+                                }}
+                                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
                     )}
+
+                    <div>
+                        <label className="text-xs font-medium text-slate-400 uppercase tracking-wider block mb-2">
+                            {selectedNode.id === 'input' ? 'Startup Idea / Goal' : 'System Instructions'}
+                        </label>
+                        <textarea 
+                            rows={selectedNode.id === 'input' ? 8 : 5}
+                            value={selectedNode.data.instructions}
+                            onChange={(e) => {
+                                setNodes(nds => nds.map(n => 
+                                    n.id === selectedNode.id ? { ...n, data: { ...n.data, instructions: e.target.value } } : n
+                                ));
+                                setSelectedNode(prev => prev ? {...prev, data: { ...prev.data, instructions: e.target.value }} : null);
+                            }}
+                            placeholder={selectedNode.id === 'input' ? "e.g. A platform for..." : "e.g. You are an expert market analyst... Do XYZ..."}
+                            className="w-full bg-[#0f172a] border border-slate-700 rounded-lg p-3 text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                        />
+                    </div>
                 </div>
             ) : (
                 <div className="flex-1 flex items-center justify-center text-center">
