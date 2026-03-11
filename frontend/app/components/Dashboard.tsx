@@ -9,7 +9,7 @@ import ReportViewer from "@/app/components/ReportViewer";
 import { ArrowLeft, Play, Pause, X } from "lucide-react";
 import { toast } from "react-toastify";
 
-export default function Dashboard({ session, onBack }: { session: { id: string; idea: string }, onBack: () => void }) {
+export default function Dashboard({ session, onBack }: { session: { id: string; idea: string; modelType?: "default" | "custom" }, onBack: () => void }) {
     const [events, setEvents] = useState<AgentEvent[]>([]);
     const [isPaused, setIsPaused] = useState(false);
     const [finalReport, setFinalReport] = useState<any>(null);
@@ -17,7 +17,8 @@ export default function Dashboard({ session, onBack }: { session: { id: string; 
     useEffect(() => {
         if (isPaused) return;
 
-        const cleanup = createSSEClient(session.id, (event) => {
+        const endpoint = session.modelType === "custom" ? `/stream/custom/${session.id}` : `/stream/${session.id}`;
+        const cleanup = createSSEClient(endpoint, (event) => {
             setEvents((prev) => [...prev, event]);
 
             if (event.type === 'analysis_complete') {
