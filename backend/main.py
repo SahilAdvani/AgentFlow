@@ -21,7 +21,14 @@ from services.pdf_service import pdf_service
 from services.email_service import email_service
 from memory.vector_memory import vector_memory
 
+# Import the new custom router
+from routers import custom_analyze
+
 app = FastAPI(title="AI Startup Research Command Center")
+
+# Include the custom router
+app.include_router(custom_analyze.router)
+
 
 # Allow CORS
 app.add_middleware(
@@ -39,6 +46,20 @@ class StartupRequest(BaseModel):
 
 active_sessions = {}
 
+async def retry_with_backoff(fn, *args, max_retries=3, base_delay=2, **kwargs):
+    """Retry an async function with exponential backoff on rate limit errors."""
+    for attempt in range(max_retries):
+        try:
+            return await fn(*args, **kwargs)
+        except Exception as e:
+            error_msg = str(e).lower()
+            if attempt < max_retries - 1 and ("rate" in error_msg or "too many" in error_msg or "429" in error_msg):
+                delay = base_delay * (2 ** attempt)
+                print(f"[RETRY] Rate limited. Waiting {delay}s before retry {attempt + 2}/{max_retries}...")
+                await asyncio.sleep(delay)
+            else:
+                raise
+
 async def run_analysis(session_id: str, idea: str, email: Optional[str], user_id: Optional[str]):
     queue = active_sessions[session_id]["events"]
     
@@ -48,11 +69,11 @@ async def run_analysis(session_id: str, idea: str, email: Optional[str], user_id
         
         # 2. Manager decomposing
         await queue.put({"type": "agent_thinking", "agent_name": "ManagerAgent", "content": f"Decomposing startup idea: {idea}"})
-        tasks = await manager_agent.decompose_task(idea)
+        tasks = await retry_with_backoff(manager_agent.decompose_task, idea)
         print(f"[SESSION {session_id}] Generated Tasks: {tasks}")
         await queue.put({"type": "agent_result", "agent_name": "ManagerAgent", "content": f"Identified {len(tasks)} research tasks.", "data": {"tasks": tasks}})
         
-        # 3. Researching (Sequential for demo clarity)
+        # 3. Researching (Sequential with delays to avoid rate limits)
         for i, task_item in enumerate(tasks):
             # Handle if LLM returned objects instead of strings
             task_str = task_item if isinstance(task_item, str) else task_item.get("instruction", str(task_item))
@@ -62,27 +83,36 @@ async def run_analysis(session_id: str, idea: str, email: Optional[str], user_id
                 continue
             
             await queue.put({"type": "agent_thinking", "agent_name": "ResearchAgent", "content": f"Conducting research for task {i+1}: {task_str}"})
-            summary = await research_agent.conduct_research(task_str)
+            summary = await retry_with_backoff(research_agent.conduct_research, task_str)
             await queue.put({"type": "agent_result", "agent_name": "ResearchAgent", "content": f"Summary for task {i+1} complete."})
+            await asyncio.sleep(1)  # Cooldown between research tasks
+
+        await asyncio.sleep(1.5)  # Cooldown before market analysis
 
         # 4. Market Analysis
         await queue.put({"type": "agent_thinking", "agent_name": "MarketAgent", "content": "Analyzing market size and trends..."})
-        market_data = await market_agent.analyze_market(idea)
+        market_data = await retry_with_backoff(market_agent.analyze_market, idea)
         await queue.put({"type": "agent_result", "agent_name": "MarketAgent", "content": "Market analysis complete.", "data": market_data})
+
+        await asyncio.sleep(1.5)  # Cooldown before competitor analysis
 
         # 5. Competitor Analysis
         await queue.put({"type": "agent_thinking", "agent_name": "CompetitorAgent", "content": "Analyzing competitor landscape..."})
-        competitor_data = await competitor_agent.analyze_competitors(idea)
+        competitor_data = await retry_with_backoff(competitor_agent.analyze_competitors, idea)
         await queue.put({"type": "agent_result", "agent_name": "CompetitorAgent", "content": "Competitor analysis complete.", "data": competitor_data})
+
+        await asyncio.sleep(1.5)  # Cooldown before strategy
 
         # 6. Strategy
         await queue.put({"type": "agent_thinking", "agent_name": "StrategyAgent", "content": "Synthesizing research into a strategy..."})
-        strategy = await strategy_agent.propose_strategy(idea)
+        strategy = await retry_with_backoff(strategy_agent.propose_strategy, idea)
         await queue.put({"type": "agent_result", "agent_name": "StrategyAgent", "content": "Strategy proposal complete."})
+
+        await asyncio.sleep(1.5)  # Cooldown before final report
 
         # 7. Final Report
         await queue.put({"type": "agent_thinking", "agent_name": "ReportAgent", "content": "Generating final structured report..."})
-        final_report = await report_agent.generate_final_report(idea)
+        final_report = await retry_with_backoff(report_agent.generate_final_report, idea)
         
         # 8. PDF Generation
         pdf_path = f"{session_id}_report.pdf"

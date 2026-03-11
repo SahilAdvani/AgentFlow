@@ -5,9 +5,9 @@ export type AgentEvent = {
     data?: any;
 };
 
-export function createSSEClient(sessionId: string, onEvent: (event: AgentEvent) => void) {
+export function createSSEClient(endpoint: string, onEvent: (event: AgentEvent) => void) {
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-    const eventSource = new EventSource(`${baseUrl}/stream/${sessionId}`);
+    const eventSource = new EventSource(`${baseUrl}${endpoint}`);
 
     eventSource.onmessage = (event) => {
         const data: AgentEvent = JSON.parse(event.data);

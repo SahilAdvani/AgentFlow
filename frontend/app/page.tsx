@@ -3,15 +3,17 @@
 import { useState, useEffect } from "react";
 import Dashboard from "@/app/components/Dashboard";
 import AuthModal from "@/app/components/AuthModal";
+import CustomAgentBuilder from "@/app/components/CustomAgentBuilder";
 import { createClient } from "@/app/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { LogOut, History, UserCircle2 } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
-    const [session, setSession] = useState<{ id: string; idea: string } | null>(null);
+    const [session, setSession] = useState<{ id: string; idea: string; modelType?: "default" | "custom" } | null>(null);
     const [user, setUser] = useState<User | null>(null);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const [globalModelType, setGlobalModelType] = useState<"default" | "custom">("default");
     
     const supabase = createClient();
 
@@ -38,19 +40,30 @@ export default function Home() {
         setUser(null);
     };
 
-    const handleStartAnalysis = async (idea: string, email?: string) => {
+    const handleStartAnalysis = async (idea: string, email?: string, modelType: "default" | "custom" = "default", nodes?: any[], edges?: any[]) => {
         try {
             const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-            const resp = await fetch(`${baseUrl}/analyze`, {
+            const endpoint = modelType === "custom" ? "/analyze/custom" : "/analyze";
+            const resp = await fetch(`${baseUrl}${endpoint}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ idea, email, user_id: user?.id }),
+                body: JSON.stringify({ idea, email, user_id: user?.id, nodes, edges }),
             });
             const data = await resp.json();
-            setSession({ id: data.session_id, idea });
+            
+            // Note: the backend stream also changes for custom, so we need to pass modelType to Dashboard if we want to stream from the custom route. 
+            // We can embed it in the session object.
+            setSession({ id: data.session_id, idea, modelType });
         } catch (err) {
             console.error("Failed to start analysis", err);
         }
+    };
+
+    const handleCustomLaunch = (nodes: any[], edges: any[]) => {
+        // Extract the main idea from the Input node
+        const inputNode = nodes.find(n => n.id === 'input');
+        const idea = inputNode ? inputNode.data.instructions : "Custom Agent Pipeline";
+        handleStartAnalysis(idea, undefined, "custom", nodes, edges);
     };
 
     return (
@@ -109,7 +122,38 @@ export default function Home() {
                         </p>
                     </div>
 
-                    <StartupInput onStart={handleStartAnalysis} />
+                    <div className="flex gap-4 p-1 bg-[#0f172a] rounded-xl border border-slate-800 max-w-sm mx-auto mb-8">
+                        <button
+                            onClick={() => setGlobalModelType("default")}
+                            className={`flex-1 py-3 text-sm font-medium rounded-lg transition-all ${
+                                globalModelType === "default" 
+                                    ? "bg-slate-800 text-white shadow-md" 
+                                    : "text-slate-400 hover:text-slate-300 hover:bg-white/5"
+                            }`}
+                        >
+                            Default Model
+                        </button>
+                        <button
+                            onClick={() => setGlobalModelType("custom")}
+                            className={`flex-1 py-3 text-sm font-medium rounded-lg transition-all ${
+                                globalModelType === "custom" 
+                                    ? "bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-md" 
+                                    : "text-slate-400 hover:text-slate-300 hover:bg-white/5"
+                            }`}
+                        >
+                            Custom Builder
+                        </button>
+                    </div>
+
+                    {globalModelType === "default" ? (
+                        <StartupInput 
+                            onStart={handleStartAnalysis} 
+                        />
+                    ) : (
+                        <div className="w-full max-w-6xl mx-auto space-y-4">
+                            <CustomAgentBuilder onLaunch={handleCustomLaunch} />
+                        </div>
+                    )}
                 </div>
             ) : (
                 <Dashboard session={session} onBack={() => setSession(null)} />
@@ -125,14 +169,18 @@ export default function Home() {
     );
 }
 
-function StartupInput({ onStart }: { onStart: (idea: string, email?: string) => void }) {
+function StartupInput({ 
+    onStart, 
+}: { 
+    onStart: (idea: string, email?: string, modelType?: "default" | "custom") => void,
+}) {
     const [idea, setIdea] = useState("");
     const [email, setEmail] = useState("");
 
     return (
-        <div className="glass p-8 rounded-2xl w-full max-w-xl space-y-6 shadow-2xl border border-white/10">
+        <div className="glass p-8 rounded-2xl w-full max-w-xl space-y-6 shadow-2xl border border-white/10 mx-auto">
             <div className="space-y-2 text-left">
-                <label className="text-sm font-medium text-slate-400">Startup Idea</label>
+                <label className="text-sm font-medium text-slate-400">Startup Idea / Goal</label>
                 <textarea
                     value={idea}
                     onChange={(e) => setIdea(e.target.value)}
@@ -153,7 +201,7 @@ function StartupInput({ onStart }: { onStart: (idea: string, email?: string) => 
             </div>
 
             <button
-                onClick={() => onStart(idea, email)}
+                onClick={() => onStart(idea, email, "default")}
                 disabled={!idea}
                 className="w-full py-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-bold rounded-xl shadow-lg transform active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
