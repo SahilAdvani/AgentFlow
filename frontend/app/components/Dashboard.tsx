@@ -26,7 +26,16 @@ export default function Dashboard({ session, onBack }: { session: { id: string; 
                 toast.success("Startup research mission complete!");
             }
             if (event.type === 'error') {
-                toast.error(`Agent failure: ${event.content}`);
+                if (event.error_code === 'RATE_LIMIT_EXCEEDED') {
+                    toast.warning("🚀 Provider rate limit reached! Please try again in 1-2 minutes.", {
+                        autoClose: false,
+                        closeOnClick: true,
+                        pauseOnHover: true,
+                        draggable: true,
+                    });
+                } else {
+                    toast.error(`Agent failure: ${event.content}`);
+                }
             }
         });
 
