@@ -137,9 +137,23 @@ async def run_analysis(session_id: str, idea: str, email: Optional[str], user_id
         await queue.put({"type": "analysis_complete", "agent_name": "ReportAgent", "content": "Analysis finished!", "data": final_report})
         
     except Exception as e:
-        print(f"[SESSION {session_id}] ERROR: {str(e)}")
+        error_msg = str(e)
+        error_code = "GENERIC_ERROR"
+        
+        # Check for rate limits (Groq and OpenAI frequently use RateLimitError)
+        # We try to detect them by class name or string matching if imports fail
+        if "rate_limit_exceeded" in error_msg.lower() or "rate limit" in error_msg.lower():
+            error_code = "RATE_LIMIT_EXCEEDED"
+            error_msg = "Provider rate limit exceeded. Please try again later."
+
+        print(f"[SESSION {session_id}] ERROR: {error_msg}")
         traceback.print_exc()
-        await queue.put({"type": "error", "agent_name": "System", "content": str(e)})
+        await queue.put({
+            "type": "error", 
+            "agent_name": "System", 
+            "content": error_msg,
+            "error_code": error_code
+        })
 
 @app.post("/analyze")
 async def start_analysis(request: StartupRequest):

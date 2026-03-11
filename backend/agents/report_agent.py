@@ -14,7 +14,6 @@ class ReportAgent:
             api_key=os.getenv("GROQ_API_KEY")
         )
         self.prompt = ChatPromptTemplate.from_template(
-        self.prompt = ChatPromptTemplate.from_template(
             "You are a senior business consultant. Synthesize these findings into a comprehensive startup report for: {startup_idea}"
             "\n\nAll research context:\n{memory_context}"
             "\n\nYou MUST respond with ONLY valid JSON. No markdown, no explanation, no code fences."
