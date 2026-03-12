@@ -71,7 +71,7 @@ function LogEntry({ event }: { event: AgentEvent }) {
                     </div>
 
                     <p className="text-sm text-slate-300 font-medium break-words leading-relaxed">
-                        {event.content}
+                        {typeof event.content === 'string' ? event.content : JSON.stringify(event.content)}
                     </p>
 
                     {event.data && (

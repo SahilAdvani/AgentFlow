@@ -23,6 +23,27 @@ class VectorMemory:
         self.embedding_model = "text-embedding-3-small"
         self.table_name = collection_name # Default is "agent_memory", matches our SQL
 
+    def _get_embedding(self, text: str) -> list:
+        """Safely get an embedding, falling back to ada-002 or a zero vector if API fails."""
+        try:
+            response = self.openai_client.embeddings.create(
+                input=text,
+                model=self.embedding_model
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            print(f"WARNING: Embedding failed with {self.embedding_model}: {e}. Trying text-embedding-ada-002...")
+            try:
+                response = self.openai_client.embeddings.create(
+                    input=text,
+                    model="text-embedding-ada-002"
+                )
+                return response.data[0].embedding
+            except Exception as e2:
+                print(f"CRITICAL: All embedding models failed: {e2}. Returning zero vector to prevent crash.")
+                # OpenAI embeddings are 1536 dimensions
+                return [0.0] * 1536
+
     def add_memory(self, content: str, agent_name: str, metadata: dict = None):
         """Add a memory entry from an agent."""
         if metadata is None:
@@ -36,11 +57,7 @@ class VectorMemory:
         memory_id = f"{agent_name}_{datetime.now().timestamp()}"
         
         # 1. Generate Embedding
-        response = self.openai_client.embeddings.create(
-            input=content,
-            model=self.embedding_model
-        )
-        embedding = response.data[0].embedding
+        embedding = self._get_embedding(content)
         
         # 2. Insert into Supabase
         try:
@@ -59,11 +76,7 @@ class VectorMemory:
         """Query memory for relevant entries. Mirrors ChromaDB output format."""
         
         # 1. Generate Embedding for the query
-        response = self.openai_client.embeddings.create(
-            input=query,
-            model=self.embedding_model
-        )
-        query_embedding = response.data[0].embedding
+        query_embedding = self._get_embedding(query)
         
         # 2. Call the match_agent_memory RPC
         try:
