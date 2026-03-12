@@ -36,9 +36,16 @@ export default function ReportViewer({ data, idea, sessionId }: { data: any, ide
 }
 
 function Section({ title, content }: { title: string, content: any }) {
-    const displayContent = typeof content === 'object' && content !== null 
-        ? JSON.stringify(content, null, 2) 
-        : content;
+    let displayContent = "No data available.";
+    if (typeof content === 'string') {
+        displayContent = content;
+    } else if (content !== null && content !== undefined) {
+        try {
+            displayContent = JSON.stringify(content, null, 2);
+        } catch (e) {
+            displayContent = String(content);
+        }
+    }
 
     return (
         <div className="space-y-1">
