@@ -11,6 +11,7 @@ from typing import Optional
 from services.pdf_service import pdf_service
 from services.email_service import email_service
 from memory.vector_memory import vector_memory
+from langchain_core.prompts import ChatPromptTemplate
 
 router = APIRouter()
 
@@ -77,23 +78,40 @@ async def run_custom_analysis(session_id: str, idea: str, email: Optional[str], 
         # We will keep track of the last executed node's result as the 'final_report'
         final_report_content = "Graph execution completed without producing a result."
         
+        # Build a map of all node metadata for the frontend
+        node_meta_list = []
+        for n in nodes:
+            nd = n.get("data", {})
+            node_meta_list.append({
+                "node_id": n["id"],
+                "role": nd.get("role", "Unknown"),
+                "model": nd.get("model", "groq"),
+                "status": "pending",
+            })
+        await queue.put({"type": "graph_meta", "agent_name": "System", "content": "Custom graph metadata", "data": {"nodes": node_meta_list, "edges": edges or []}})
+        await asyncio.sleep(0.3)
+
         while ready_queue:
             current_id = ready_queue.pop(0)
             
-            # Find the actual node data
             current_node = next((n for n in nodes if n["id"] == current_id), None)
             if not current_node:
                 continue
                 
             role = current_node.get("data", {}).get("role", "Unknown Agent")
             instructions = current_node.get("data", {}).get("instructions", "")
+            model = current_node.get("data", {}).get("model", "groq")
             
             if current_id != "input":
-                await queue.put({"type": "agent_thinking", "agent_name": current_id, "content": f"[{role}] Starting task execution..."})
+                # Emit "running" status
+                await queue.put({
+                    "type": "agent_thinking",
+                    "agent_name": current_id,
+                    "content": f"[{role}] Running with {model.upper()} model...",
+                    "data": {"node_id": current_id, "role": role, "model": model, "status": "running"}
+                })
                 
-                # Gather context from upstream nodes (all edges where target == current_id)
-                # For simplicity, we just aggregate all available previous results.
-                # In a strict DAG, you would only take results from predecessors.
+                # Gather context from upstream nodes
                 predecessors = [edge["source"] for edge in (edges or []) if edge["target"] == current_id]
                 context_parts = []
                 for p_id in predecessors:
@@ -103,16 +121,36 @@ async def run_custom_analysis(session_id: str, idea: str, email: Optional[str], 
                         
                 context = "\n\n".join(context_parts)
                 
-                # Execute dynamically
-                result = await retry_with_backoff(dynamic_agent.execute_task, role, instructions, context)
-                node_results[current_id] = result
-                final_report_content = result
+                # Execute with the selected model
+                try:
+                    result = await retry_with_backoff(dynamic_agent.execute_task, role, instructions, context, model=model)
+                    node_results[current_id] = result
+                    final_report_content = result
+                    
+                    await queue.put({
+                        "type": "agent_result",
+                        "agent_name": current_id,
+                        "content": f"[{role}] ✅ Complete ({model.upper()})",
+                        "data": {"node_id": current_id, "role": role, "model": model, "status": "complete", "result": result}
+                    })
+                except Exception as node_err:
+                    await queue.put({
+                        "type": "agent_result",
+                        "agent_name": current_id,
+                        "content": f"[{role}] ❌ Failed ({model.upper()}): {str(node_err)[:100]}",
+                        "data": {"node_id": current_id, "role": role, "model": model, "status": "error"}
+                    })
+                    node_results[current_id] = f"Error: {str(node_err)}"
                 
-                await queue.put({"type": "agent_result", "agent_name": current_id, "content": f"[{role}] Task complete.", "data": result})
                 await asyncio.sleep(1)
             else:
-                # Store the input idea as the result of the input node
                 node_results[current_id] = instructions
+                await queue.put({
+                    "type": "agent_result",
+                    "agent_name": current_id,
+                    "content": f"[Input] Idea loaded: {instructions[:80]}...",
+                    "data": {"node_id": current_id, "role": "Input", "model": "none", "status": "complete"}
+                })
             
             # Reduce in-degree for neighbors
             for neighbor in adj_list.get(current_id, []):
@@ -120,9 +158,44 @@ async def run_custom_analysis(session_id: str, idea: str, email: Optional[str], 
                 if in_degree[neighbor] == 0:
                     ready_queue.append(neighbor)
         
-        # For the final report display, we wrap the raw text into the format expected by Dashboard.
+        # 7. Structure the final report
+        # We use a final LLM call to structure whatever the custom agents produced into 
+        # the format expected by ReportViewer and PDFService.
+        try:
+            await queue.put({"type": "agent_thinking", "agent_name": "System", "content": "Structuring final report..."})
+            
+            struct_prompt = ChatPromptTemplate.from_template(
+                "You are an expert tech analyst formatting a final report. "
+                "Below is the combined output from various distinct custom AI agents that analyzed a startup idea.\n"
+                "Your job is to read all of it and extract/synthesize the information into exactly THREE sections: \n"
+                "1. Executive Summary: What the startup is doing and its top-level value proposition.\n"
+                "2. Strategy: The business, go-to-market, or technical strategy outlined by the agents.\n"
+                "3. Market Outlook: Any market size, trends, or competitor analysis found in the text.\n\n"
+                "Raw Agent Output:\n{raw_text}\n\n"
+                "Return ONLY a valid JSON object with the keys 'executive_summary', 'strategy', and 'market_analysis'. "
+                "If a section lacks information, just say 'No specific data provided by the agents.' "
+                "Do not include any markdown formatting like ```json, just the raw JSON."
+            )
+            # Use groq to structure it quickly
+            llm = dynamic_agent.groq_llm
+            chain = struct_prompt | llm | dynamic_agent.parser
+            struct_result = await chain.ainvoke({"raw_text": final_report_content})
+            
+            # Clean up potential markdown formatting from LLM response
+            clean_json = struct_result.replace("```json", "").replace("```", "").strip()
+            parsed_data = json.loads(clean_json)
+        except Exception as e:
+            print(f"Error structuring custom report: {e}")
+            parsed_data = {
+                "executive_summary": final_report_content,
+                "strategy": "Failed to parse strategy.",
+                "market_analysis": "Failed to parse market analysis."
+            }
+
         final_report = {
-            "executive_summary": final_report_content,
+            "executive_summary": parsed_data.get("executive_summary", final_report_content),
+            "strategy": parsed_data.get("strategy", "N/A"),
+            "market_analysis": parsed_data.get("market_analysis", "N/A"),
             "market_size": "N/A (Custom Pipeline)",
             "monetization": "N/A",
             "competitors": [],

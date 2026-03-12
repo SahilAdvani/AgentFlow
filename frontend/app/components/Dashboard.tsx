@@ -9,7 +9,7 @@ import ReportViewer from "@/app/components/ReportViewer";
 import { ArrowLeft, Play, Pause, X } from "lucide-react";
 import { toast } from "react-toastify";
 
-export default function Dashboard({ session, onBack }: { session: { id: string; idea: string; modelType?: "default" | "custom" }, onBack: () => void }) {
+export default function Dashboard({ session, onBack }: { session: { id: string; idea: string; modelType?: "default" | "custom"; customNodes?: any[]; customEdges?: any[] }, onBack: () => void }) {
     const [events, setEvents] = useState<AgentEvent[]>([]);
     const [isPaused, setIsPaused] = useState(false);
     const [finalReport, setFinalReport] = useState<any>(null);
@@ -72,18 +72,24 @@ export default function Dashboard({ session, onBack }: { session: { id: string; 
                 <div className="lg:col-span-8 space-y-6">
                     <div className="glass h-[500px] rounded-2xl p-6 relative overflow-hidden">
                         <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Agent Collaboration Graph</h3>
-                        <AgentGraph events={events} />
+                        <AgentGraph events={events} modelType={session.modelType} customNodes={session.customNodes} customEdges={session.customEdges} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="glass min-h-[300px] rounded-2xl p-6">
-                            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Market Opportunity</h3>
-                            <MarketCharts events={events} />
+                            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">
+                                {session.modelType === "custom" ? "Agent Outputs" : "Market Opportunity"}
+                            </h3>
+                            {session.modelType === "custom" ? (
+                                <CustomAgentOutputs events={events} />
+                            ) : (
+                                <MarketCharts events={events} />
+                            )}
                         </div>
                         <div className="glass min-h-[300px] rounded-2xl p-6">
                             <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">Final Synthesis</h3>
                             {finalReport ? (
-                                <ReportViewer data={finalReport} idea={session.idea} />
+                                <ReportViewer data={finalReport} idea={session.idea} sessionId={session.id} />
                             ) : (
                                 <div className="flex items-center justify-center h-full text-slate-500 italic text-sm">
                                     Waiting for Report Agent to synthesize final data...
@@ -98,6 +104,48 @@ export default function Dashboard({ session, onBack }: { session: { id: string; 
                     <AgentLogPanel events={events} />
                 </div>
             </div>
+        </div>
+    );
+}
+
+function CustomAgentOutputs({ events }: { events: AgentEvent[] }) {
+    const outputs = events.filter(
+        (e) => e.type === "agent_result" && e.data?.status === "complete" && e.data?.result
+    );
+
+    const MODEL_COLORS: Record<string, string> = {
+        groq: "#f59e0b",
+        openai: "#10b981",
+        tavily: "#3b82f6",
+    };
+
+    if (outputs.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-48 opacity-20">
+                <p className="text-sm italic">Waiting for agents to complete...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-3 overflow-y-auto max-h-[250px] pr-1">
+            {outputs.map((e, i) => {
+                const d = e.data;
+                const mc = MODEL_COLORS[d.model] || "#64748b";
+                return (
+                    <div key={i} className="p-3 rounded-xl border border-white/5 bg-white/[0.02]" style={{ borderLeft: `3px solid ${mc}` }}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{d.role}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: `${mc}20`, color: mc }}>
+                                {d.model?.toUpperCase()}
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">
+                            {typeof d.result === "string" ? d.result.slice(0, 200) + (d.result.length > 200 ? "..." : "") : JSON.stringify(d.result).slice(0, 200)}
+                        </p>
+                    </div>
+                );
+            })}
         </div>
     );
 }

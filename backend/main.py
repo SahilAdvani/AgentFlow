@@ -188,9 +188,11 @@ from fastapi.responses import FileResponse
 
 @app.get("/download/{session_id}")
 async def download_report(session_id: str):
-    pdf_path = f"{session_id}_report.pdf"
-    if os.path.exists(pdf_path):
-        return FileResponse(pdf_path, filename="Startup_Analysis_Report.pdf")
+    # Check default report first, then custom report
+    for suffix in ["_report.pdf", "_custom_report.pdf"]:
+        pdf_path = f"{session_id}{suffix}"
+        if os.path.exists(pdf_path):
+            return FileResponse(pdf_path, filename="Startup_Analysis_Report.pdf")
     return {"error": "Report not found"}
 
 
