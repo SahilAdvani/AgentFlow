@@ -59,6 +59,9 @@ cover/
 *.swp
 *.swo
 
-# Temporary files / PDFs
+# Temporary files / PDFs / DBs
 *.pdf
 *.log
+chroma_db/
+.git/
+.gitignore

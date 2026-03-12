@@ -17,6 +17,7 @@ class ReportAgent:
             "You are a senior business consultant. Synthesize these findings into a comprehensive startup report for: {startup_idea}"
             "\n\nAll research context:\n{memory_context}"
             "\n\nYou MUST respond with ONLY valid JSON. No markdown, no explanation, no code fences."
+            "\nIMPORTANT: Every value in the JSON must be a plain STRING. Do not return nested objects or lists for any field."
             "\n\nRequired JSON format:"
             "\n{{"
             "\n  \"executive_summary\": \"2-3 paragraph executive summary of the opportunity\","

@@ -5,6 +5,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 import json
 import os
+from typing import Any
 
 class PDFService:
     def __init__(self):

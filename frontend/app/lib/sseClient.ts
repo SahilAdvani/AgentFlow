@@ -2,6 +2,7 @@ export type AgentEvent = {
     type: 'agent_thinking' | 'agent_result' | 'tool_call' | 'error' | 'analysis_complete' | 'graph_meta';
     agent_name: string;
     content: string;
+    error_code?: string;
     data?: any;
 };
 

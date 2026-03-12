@@ -47,5 +47,3 @@ class EmailService:
             return False
 
 email_service = EmailService()
-
-email_service = EmailService()
